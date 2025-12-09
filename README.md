@@ -1,12 +1,18 @@
 # 🤖 Servicio de IA para Resúmenes de Reuniones
 
-Servicio independiente que genera resúmenes automáticos de reuniones en tiempo real usando Google Gemini (gratis).
+Servicio independiente que genera resúmenes automáticos de reuniones en tiempo real usando Groq AI (gratis, sin cuotas estrictas).
+
+## 👥 Equipo
+
+<!-- Agregar nombres y códigos de los integrantes del equipo -->
+- [Agregar nombre] - [Agregar código]
+- [Agregar nombre] - [Agregar código]
 
 ## 🎯 Características
 
 - ✅ Se conecta al backend existente como cliente Socket.IO
 - ✅ Escucha eventos en tiempo real (sin modificar backends existentes)
-- ✅ Genera resúmenes con Google Gemini (gratis)
+- ✅ Genera resúmenes con Groq AI (gratis, sin cuotas estrictas)
 - ✅ Extrae tareas y compromisos
 - ✅ Envía emails automáticos al finalizar
 - ✅ Procesa transcripciones de audio (opcional)
@@ -27,11 +33,12 @@ Copia `.env.example` a `.env` y configura:
 cp .env.example .env
 ```
 
-### 3. Obtener API Key de Google Gemini
+### 3. Obtener API Key de Groq
 
-1. Ve a [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Crea una API key
-3. Agrégala a `.env` como `GEMINI_API_KEY`
+1. Ve a [Groq Console](https://console.groq.com/)
+2. Crea una cuenta (gratis)
+3. Genera una API key
+4. Agrégala a `.env` como `GROQ_API_KEY`
 
 ### 4. Ejecutar en desarrollo
 
@@ -49,19 +56,22 @@ npm start
 ## 📋 Requisitos
 
 - Node.js >= 18.0.0
-- API Key de Google Gemini (gratis)
+- API Key de Groq (gratis, sin cuotas estrictas)
 - Acceso al backend principal (Socket.IO)
-- Configuración de Firebase (para obtener emails)
-- Configuración SMTP (para enviar emails)
+- Configuración de Firebase (para obtener emails y enviar correos)
 
 ## 🔧 Configuración
 
 ### Variables de Entorno
 
 - `BACKEND_SOCKET_URL`: URL del backend principal con Socket.IO
-- `GEMINI_API_KEY`: API key de Google Gemini
-- `FIREBASE_*`: Credenciales de Firebase
-- `SMTP_*`: Configuración de email
+- `GROQ_API_KEY`: API key de Groq AI
+- `GROQ_MODEL`: Modelo a usar (opcional, por defecto: llama-3.1-8b-instant)
+- `FIREBASE_*`: Credenciales de Firebase (para obtener emails y enviar correos)
+
+**Nota sobre envío de emails:**
+El servicio guarda los resúmenes en Firestore en la colección `email_queue`. 
+Firebase Cloud Functions o Extensions (como Trigger Email) procesan y envían los emails automáticamente.
 
 ## 🏗️ Arquitectura
 
@@ -70,7 +80,7 @@ Backend Principal (Back/)
     ↓ Socket.IO (emite eventos)
 Servicio de IA (este servicio)
     ↓
-Google Gemini API
+Groq AI API
     ↓
 Genera resumen → Envía email
 ```
@@ -81,7 +91,7 @@ Genera resumen → Envía email
 src/
 ├── config/
 │   ├── socket.client.ts    # Cliente Socket.IO
-│   ├── gemini.ts           # Configuración Gemini
+│   ├── groq.ts             # Configuración Groq AI
 │   ├── firebase.ts         # Configuración Firebase
 │   └── email.ts            # Configuración Email
 ├── services/
@@ -112,4 +122,6 @@ src/
 ## 🔗 Repositorio
 
 https://github.com/Hernan56IK/ia-pi3-trasncribir.git
+
+
 

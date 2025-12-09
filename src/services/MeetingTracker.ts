@@ -71,27 +71,42 @@ export class MeetingTracker {
 
   /**
    * Remueve un participante de la reunión
+   * @returns {boolean} true si la reunión debe finalizarse (no hay participantes activos)
    */
-  removeParticipant(meetingId: string, userId: string): void {
+  removeParticipant(meetingId: string, userId: string): boolean {
     const meeting = this.meetings.get(meetingId);
-    if (!meeting) return;
+    if (!meeting) {
+      console.warn(`⚠️ Reunión ${meetingId} no encontrada al remover participante ${userId}`);
+      return false;
+    }
 
     const participant = meeting.participants.get(userId);
     if (participant) {
       participant.leftAt = new Date().toISOString();
-      console.log(`👋 Participante removido: ${participant.userName} de ${meetingId}`);
+      console.log(`👋 Participante removido: ${participant.userName} (${userId}) de ${meetingId}`);
+    } else {
+      console.warn(`⚠️ Participante ${userId} no encontrado en reunión ${meetingId}`);
+      return false;
     }
 
-    // Si no quedan participantes activos, marcar reunión como inactiva
+    // Contar participantes activos (que no han salido)
     const activeParticipants = Array.from(meeting.participants.values()).filter(
       (p) => !p.leftAt
     );
 
-    if (activeParticipants.length === 0) {
-      meeting.isActive = false;
-      meeting.endTime = new Date().toISOString();
-      console.log(`🏁 Reunión ${meetingId} finalizada (sin participantes activos)`);
+    console.log(`📊 Reunión ${meetingId}: ${activeParticipants.length} participantes activos de ${meeting.participants.size} totales`);
+
+    // Solo retornar true si NO hay participantes activos Y había al menos un participante
+    // La decisión final de finalizar se toma en el listener, no aquí
+    if (activeParticipants.length === 0 && meeting.participants.size > 0) {
+      console.log(`📝 Todos los participantes han salido de ${meetingId}`);
+      return true; // Indicar que puede finalizarse
+    } else if (activeParticipants.length === 0 && meeting.participants.size === 0) {
+      console.warn(`⚠️ Reunión ${meetingId} sin participantes registrados`);
+      return false;
     }
+
+    return false; // Aún hay participantes activos, no finalizar
   }
 
   /**
@@ -107,13 +122,30 @@ export class MeetingTracker {
 
   /**
    * Agrega una transcripción de audio
+   * Si la reunión no existe, la crea automáticamente
    */
   addTranscription(meetingId: string, transcription: AudioTranscription): void {
-    const meeting = this.meetings.get(meetingId);
-    if (!meeting) return;
+    let meeting = this.meetings.get(meetingId);
+    
+    // Si la reunión no existe, crearla automáticamente
+    if (!meeting) {
+      console.warn(`⚠️ Reunión ${meetingId} no encontrada al agregar transcripción. Creando reunión automáticamente...`);
+      this.startMeeting(
+        meetingId,
+        transcription.userId,
+        transcription.userName
+      );
+      meeting = this.meetings.get(meetingId);
+      
+      if (!meeting) {
+        console.error(`❌ Error: No se pudo crear la reunión ${meetingId} para la transcripción`);
+        return;
+      }
+    }
 
     meeting.audioTranscriptions.push(transcription);
-    console.log(`🎤 Transcripción agregada a ${meetingId}: ${transcription.userName}`);
+    console.log(`🎤 Transcripción agregada a ${meetingId}: ${transcription.userName} (${transcription.text.substring(0, 50)}...)`);
+    console.log(`📊 Total de transcripciones en ${meetingId}: ${meeting.audioTranscriptions.length}`);
   }
 
   /**

@@ -8,10 +8,12 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 4000
+        value: 4001
       - key: BACKEND_SOCKET_URL
         sync: false
-      - key: GEMINI_API_KEY
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
@@ -19,12 +21,12 @@ services:
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
         sync: false
-      - key: SMTP_HOST
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_USER
+      - key: BREVO_FROM_EMAIL
         sync: false
-      - key: SMTP_PASS
+      - key: BREVO_FROM_NAME
         sync: false
-      - key: EMAIL_FROM
-        sync: false
+
+
 

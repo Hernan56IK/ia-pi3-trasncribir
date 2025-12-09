@@ -15,11 +15,19 @@ export const initializeFirebase = (): void => {
     return; // Ya inicializado
   }
 
-  try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  // Verificar si las variables de entorno están configuradas
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
+    console.warn('⚠️ Firebase no configurado. Algunas funcionalidades no estarán disponibles.');
+    return;
+  }
 
-    if (!process.env.FIREBASE_PROJECT_ID || !privateKey || !process.env.FIREBASE_CLIENT_EMAIL) {
-      console.warn('⚠️ Firebase no configurado. Algunas funcionalidades no estarán disponibles.');
+  try {
+    // Reemplazar \\n por saltos de línea reales en la clave privada
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+
+    // Validar formato básico de la clave privada
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
+      console.warn('⚠️ Formato de clave privada de Firebase inválido. Firebase no se inicializará.');
       return;
     }
 
@@ -33,21 +41,21 @@ export const initializeFirebase = (): void => {
 
     db = getFirestore(app);
     console.log('✅ Firebase inicializado correctamente');
-  } catch (error) {
-    console.error('❌ Error inicializando Firebase:', error);
-    throw error;
+  } catch (error: any) {
+    // No lanzar el error, solo registrarlo
+    console.warn('⚠️ Firebase no pudo inicializarse:', error?.message || error);
+    console.warn('⚠️ El servicio continuará funcionando sin Firebase. Algunas funcionalidades no estarán disponibles.');
+    app = null;
+    db = null;
   }
 };
 
 /**
  * Obtiene la instancia de Firestore
  */
-export const getFirestoreInstance = (): Firestore => {
+export const getFirestoreInstance = (): Firestore | null => {
   if (!db) {
     initializeFirebase();
-    if (!db) {
-      throw new Error('Firebase no está inicializado');
-    }
   }
   return db;
 };
@@ -57,7 +65,9 @@ export const getFirestoreInstance = (): Firestore => {
  */
 export const getUserEmail = async (userId: string): Promise<string | null> => {
   try {
-    const db = getFirestoreInstance();
+    if (!db) {
+      return null; // Firebase no está disponible
+    }
     const userDoc = await db.collection('users').doc(userId).get();
 
     if (!userDoc.exists) {
@@ -67,8 +77,10 @@ export const getUserEmail = async (userId: string): Promise<string | null> => {
     const userData = userDoc.data();
     return userData?.email || null;
   } catch (error) {
-    console.error(`Error obteniendo email de usuario ${userId}:`, error);
+    // Silenciar errores de Firebase para no interrumpir el servicio
     return null;
   }
 };
+
+
 

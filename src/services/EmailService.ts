@@ -1,29 +1,33 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
 import { MeetingSummary } from '../models/Meeting';
+import { getFirestoreInstance } from '../config/firebase';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
 /**
- * Servicio para enviar emails con resúmenes
+ * Servicio para enviar emails con resúmenes usando Brevo API REST HTTP directo
+ * (Igual que el proyecto Python que funciona)
  */
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private apiKey: string;
+  private fromEmail: string;
+  private fromName: string;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false, // true para 465, false para otros puertos
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    this.apiKey = process.env.BREVO_API_KEY || '';
+    if (!this.apiKey) {
+      throw new Error('BREVO_API_KEY no está configurada en las variables de entorno');
+    }
+
+    // Usar sender autorizado en Brevo (hardcodeado igual que el proyecto Python)
+    this.fromEmail = 'sado56hdgm@gmail.com'; // Sender autorizado en Brevo
+    this.fromName = 'Sistema de Resúmenes de Reuniones';
   }
 
   /**
-   * Envía el resumen de la reunión por email
+   * Envía el resumen de la reunión por email usando Brevo API HTTP directo
    */
   async sendSummaryEmail(
     summary: MeetingSummary,
@@ -37,19 +41,97 @@ export class EmailService {
     const htmlContent = this.generateEmailHTML(summary);
     const textContent = this.generateEmailText(summary);
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: participantEmails.join(', '),
-      subject: `Resumen de Reunión: ${summary.title}`,
-      text: textContent,
-      html: htmlContent,
+    const headers = {
+      'accept': 'application/json',
+      'api-key': this.apiKey,
+      'content-type': 'application/json',
     };
 
+    // Payload igual que el proyecto Python que funciona
+    const payload: any = {
+      sender: {
+        name: this.fromName,
+        email: this.fromEmail,
+      },
+      to: participantEmails.map((email) => ({
+        email: email,
+        name: email.split('@')[0], // Usar parte antes del @ como nombre
+      })),
+      subject: `Resumen de Reunión: ${summary.title}`,
+      htmlContent: htmlContent,
+    };
+
+    if (textContent) {
+      payload.textContent = textContent;
+    }
+
     try {
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log('✅ Email enviado:', info.messageId);
-    } catch (error) {
-      console.error('❌ Error enviando email:', error);
+      console.log('[BREVO_DEBUG] Enviando request a Brevo API...');
+      console.log(`[BREVO_DEBUG] URL: ${BREVO_API_URL}`);
+      console.log(`[BREVO_DEBUG] Headers:`, JSON.stringify(headers, null, 2));
+      console.log(`[BREVO_DEBUG] Payload:`, JSON.stringify(payload, null, 2));
+      console.log(`[BREVO_DEBUG] From: ${this.fromEmail} (${this.fromName})`);
+      console.log(`[BREVO_DEBUG] To: ${participantEmails.join(', ')}`);
+
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload),
+      });
+
+      console.log(`[BREVO_DEBUG] Status Code: ${response.status}`);
+      console.log(`[BREVO_DEBUG] Response Headers:`, JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+      const responseText = await response.text();
+      console.log(`[BREVO_DEBUG] Response: ${responseText}`);
+
+      if (response.status !== 201) {
+        let errorMessage = `Brevo API error: ${response.status}`;
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorMessage;
+          console.error(`[BREVO_ERROR] Error en Brevo API - Status: ${response.status}`);
+          console.error(`[BREVO_ERROR] Response: ${responseText}`);
+        } catch (e) {
+          // Si no se puede parsear, usar el texto directo
+          errorMessage = responseText || errorMessage;
+        }
+
+        // Mostrar mensaje de error más claro
+        if (response.status === 403) {
+          console.error('⚠️ Error 403 - Cuenta de Brevo:', errorMessage);
+          console.error('💡 Verifica que tu cuenta de Brevo esté activada y tenga permisos para enviar emails');
+        } else if (response.status === 401) {
+          console.error('⚠️ Error 401 - API Key inválida. Verifica BREVO_API_KEY en las variables de entorno');
+        } else if (response.status === 400) {
+          console.error('⚠️ Error 400 - Solicitud inválida:', errorMessage);
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const result = JSON.parse(responseText);
+      console.log(`✅ Email enviado exitosamente usando Brevo API. Message ID: ${result.messageId || 'N/A'}`);
+      console.log(`📧 Enviado a ${participantEmails.length} participantes: ${participantEmails.join(', ')}`);
+
+      // También guardar el resumen en Firestore para referencia (opcional)
+      try {
+        const db = getFirestoreInstance();
+        if (db) {
+          await db.collection('meeting_summaries').doc(summary.meetingId).set({
+            ...summary,
+            participantEmails,
+            sentAt: new Date().toISOString(),
+            emailProvider: 'brevo-api',
+            brevoMessageId: result.messageId || null,
+          });
+          console.log(`✅ Resumen guardado en Firestore: ${summary.meetingId}`);
+        }
+      } catch (firestoreError) {
+        // No fallar si Firestore no está disponible, solo loguear
+        console.warn('⚠️ No se pudo guardar en Firestore (opcional):', firestoreError);
+      }
+    } catch (error: any) {
+      console.error('❌ Error enviando email con Brevo API:', error);
       throw error;
     }
   }
@@ -148,4 +230,6 @@ ${
     `.trim();
   }
 }
+
+
 

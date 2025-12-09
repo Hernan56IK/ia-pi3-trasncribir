@@ -25,6 +25,8 @@ export const connectToBackend = (): Socket => {
 
   socketInstance.on('connect', () => {
     console.log(`✅ Conectado al backend principal: ${BACKEND_URL}`);
+    console.log(`🆔 Socket ID del servicio de IA: ${socketInstance.id}`);
+    console.log(`📡 Escuchando eventos del backend...`);
   });
 
   socketInstance.on('disconnect', (reason) => {
@@ -58,4 +60,6 @@ export const disconnectFromBackend = (): void => {
     socketInstance = null;
   }
 };
+
+
 
